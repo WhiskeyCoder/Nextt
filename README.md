@@ -6,7 +6,7 @@
 
 A self-hosted, Plex-powered recommendation dashboard with TMDB enrichment and Overseerr integration — finally, a smart, personalized way to find what to watch next.
 
-![Nextt Dashboard](https://images.pexels.com/photos/7991579/pexels-photo-7991579.jpeg?auto=compress&cs=tinysrgb&w=1200&h=600)
+![Nextt Dashboard](IMAGE TO BE ADDED LATER)
 
 ## 🎯 What is Nextt?
 
