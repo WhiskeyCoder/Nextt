@@ -39,7 +39,7 @@ Nextt is a beautiful, self-hosted web application that generates intelligent, pe
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/nextt.git
+   git clone https://github.com/WhiskeyCoder/nextt.git
    cd nextt
    ```
 
