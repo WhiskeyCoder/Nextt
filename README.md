@@ -46,7 +46,7 @@ Nextt is a beautiful, self-hosted web application that generates intelligent, pe
 
 3. **Start the development server**
    ```bash
-   npm run dev
+   npm run dev:full
    ```
 
 4. **Open your browser**
