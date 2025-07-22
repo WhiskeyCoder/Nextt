@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  nextt:
+    build: .
+    container_name: nextt
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - nextt-network
+
+networks:
+  nextt-network:
+    driver: bridge
+
+volumes:
+  nextt-data: 
