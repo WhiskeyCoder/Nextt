@@ -174,6 +174,55 @@ export function ConfigForm({ config, onConfigChange }: ConfigFormProps) {
           />
         </div>
 
+        {/* Jellyseerr Configuration */}
+        <div className="border-t border-gray-600 pt-4">
+          <h4 className="text-md font-medium text-white mb-3">Jellyseerr (Alternative to Overseerr)</h4>
+          
+          <div className="flex items-center space-x-3 mb-4">
+            <input
+              type="checkbox"
+              id="useJellyseerr"
+              checked={config.useJellyseerr}
+              onChange={(e) => updateConfig('useJellyseerr', e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <label htmlFor="useJellyseerr" className="text-sm font-medium text-gray-300">
+              Use Jellyseerr instead of Overseerr
+            </label>
+          </div>
+          
+          <p className="text-sm text-gray-400 mb-4">
+            Jellyseerr is an alternative request manager with a nearly identical API to Overseerr. 
+            Enable this to use Jellyseerr for content requests and availability checks.
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Jellyseerr URL
+            </label>
+            <input
+              type="url"
+              value={config.jellyseerrUrl}
+              onChange={(e) => updateConfig('jellyseerrUrl', e.target.value)}
+              placeholder="http://localhost:5055"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Jellyseerr API Key
+            </label>
+            <input
+              type="password"
+              value={config.jellyseerrApiKey}
+              onChange={(e) => updateConfig('jellyseerrApiKey', e.target.value)}
+              placeholder="Your Jellyseerr API key"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
             Rating Threshold
