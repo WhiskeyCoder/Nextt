@@ -171,7 +171,7 @@ Nextt is a beautiful, self-hosted web application that generates intelligent, pe
 ### Production Architecture
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   React Frontend │    │  Node.js Backend │    │  External APIs  │
+│  React Frontend │    │  Node.js Backend │    │  External APIs  │
 │                 │    │                  │    │                 │
 │ • Dashboard     │◄──►│ • Plex Client    │◄──►│ • Plex Server   │
 │ • Settings      │    │ • Jellyfin Client│    │ • Jellyfin      │
