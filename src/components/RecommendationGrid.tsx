@@ -41,6 +41,7 @@ interface RecommendationGridProps {
 export function RecommendationGrid({ recommendations, contentType, filters, onRequestSuccess }: RecommendationGridProps) {
   console.log('RecommendationGrid: Received filters:', filters);
   console.log('RecommendationGrid: Received recommendations:', recommendations.length, 'groups');
+  console.log('RecommendationGrid: Sample recommendation group:', recommendations[0]);
   
   const filteredRecommendations = recommendations.map(seed => {
     const filteredRecs = seed.recommendations.filter(rec => {
@@ -73,9 +74,11 @@ export function RecommendationGrid({ recommendations, contentType, filters, onRe
   }).filter(seed => seed.recommendations.length > 0);
 
   console.log('RecommendationGrid: After filtering,', filteredRecommendations.length, 'groups remain');
+  console.log('RecommendationGrid: Seed ratings found:', filteredRecommendations.map(s => s.rating));
 
   const fiveStarSeeds = filteredRecommendations.filter(seed => seed.rating === 5);
   const fourStarSeeds = filteredRecommendations.filter(seed => seed.rating === 4);
+  const threeStarSeeds = filteredRecommendations.filter(seed => seed.rating === 3);
 
   return (
     <div className="space-y-8">
@@ -92,6 +95,15 @@ export function RecommendationGrid({ recommendations, contentType, filters, onRe
         <RecommendationSection 
           title="Based on your 4★ picks"
           seeds={fourStarSeeds}
+          contentType={contentType}
+          onRequestSuccess={onRequestSuccess}
+        />
+      )}
+
+      {threeStarSeeds.length > 0 && (
+        <RecommendationSection 
+          title="Based on your recent watch history"
+          seeds={threeStarSeeds}
           contentType={contentType}
           onRequestSuccess={onRequestSuccess}
         />
