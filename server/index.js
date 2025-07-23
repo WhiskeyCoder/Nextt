@@ -198,16 +198,33 @@ function saveConfig(config) {
 }
 
 function validateConfig(config) {
-  const required = ['plexUrl', 'plexToken', 'tmdbApiKey'];
-  const missing = required.filter(key => !config[key]);
-  
-  if (missing.length > 0) {
-    console.log(`⚠️  Missing required config: ${missing.join(', ')}`);
+  // Always require TMDB API key
+  if (!config.tmdbApiKey) {
+    console.log(`⚠️  Missing required config: tmdbApiKey`);
     return false;
   }
   
-  if (config.plexUrl && !config.plexUrl.startsWith('http')) {
-    console.log(`⚠️  Invalid Plex URL format: ${config.plexUrl}`);
+  // Validate provider-specific requirements
+  if (config.provider === 'plex') {
+    if (!config.plexUrl || !config.plexToken) {
+      console.log(`⚠️  Missing Plex config: plexUrl, plexToken`);
+      return false;
+    }
+    if (!config.plexUrl.startsWith('http')) {
+      console.log(`⚠️  Invalid Plex URL format: ${config.plexUrl}`);
+      return false;
+    }
+  } else if (config.provider === 'jellyfin') {
+    if (!config.jellyfinUrl || !config.jellyfinApiKey || !config.jellyfinUserId) {
+      console.log(`⚠️  Missing Jellyfin config: jellyfinUrl, jellyfinApiKey, jellyfinUserId`);
+      return false;
+    }
+    if (!config.jellyfinUrl.startsWith('http')) {
+      console.log(`⚠️  Invalid Jellyfin URL format: ${config.jellyfinUrl}`);
+      return false;
+    }
+  } else {
+    console.log(`⚠️  Invalid provider: ${config.provider}`);
     return false;
   }
   
@@ -216,7 +233,7 @@ function validateConfig(config) {
     return false;
   }
   
-  console.log(`✅ Config validation passed`);
+  console.log(`✅ Config validation passed for ${config.provider}`);
   return true;
 }
 
@@ -291,6 +308,181 @@ async function debugPlexRatings(plexUrl, plexToken) {
     } catch (error) {
       console.error(`   Error analyzing ${section.title}:`, error.message);
     }
+  }
+}
+
+// Jellyfin API functions
+async function getJellyfinTop10RecentMovies(jellyfinUrl, jellyfinApiKey, jellyfinUserId) {
+  console.log('\n🎬 STEP 1: Getting top 10 most recent rated movies from Jellyfin...');
+
+  const client = createAxiosInstance();
+
+  try {
+    // Get user's movie library
+    const response = await client.get(`${jellyfinUrl}/Users/${jellyfinUserId}/Items`, {
+      headers: { 'X-Emby-Token': jellyfinApiKey },
+      params: {
+        IncludeItemTypes: 'Movie',
+        Recursive: true,
+        SortBy: 'DatePlayed',
+        SortOrder: 'Descending',
+        Limit: 100 // Get more to filter by ratings
+      }
+    });
+
+    const movies = response.data.Items || [];
+    console.log(`📁 Found ${movies.length} movies in Jellyfin`);
+
+    // Filter for rated movies (Jellyfin uses 0-10 scale, we want 8+ for 4+ stars)
+    const ratedMovies = movies
+      .filter(movie => movie.UserData && movie.UserData.UserRating >= 8)
+      .map(movie => {
+        const ratingAt = movie.UserData?.LastPlayedDate ? 
+          new Date(movie.UserData.LastPlayedDate).getTime() / 1000 : 
+          Math.floor(Date.now() / 1000);
+
+        return {
+          plexId: movie.Id, // Using Jellyfin ID as plexId for compatibility
+          title: movie.Name,
+          year: movie.ProductionYear,
+          rating: movie.UserData.UserRating / 2, // Convert to 5-star scale
+          ratingAt: parseInt(ratingAt),
+          summary: movie.Overview || '',
+          genres: movie.Genres || [],
+          sectionTitle: 'Movies',
+          tmdbId: movie.ProviderIds?.Tmdb || null
+        };
+      })
+      .sort((a, b) => b.ratingAt - a.ratingAt)
+      .slice(0, 10);
+
+    console.log(`🏆 Top 10 most recent rated movies from Jellyfin:`);
+    ratedMovies.forEach((movie, i) => {
+      console.log(`   ${i + 1}. ${movie.title} (${movie.rating}⭐)`);
+    });
+
+    return ratedMovies;
+  } catch (error) {
+    console.error('❌ Error getting Jellyfin movies:', error.message);
+    return [];
+  }
+}
+
+async function getJellyfinTop10RecentTVShows(jellyfinUrl, jellyfinApiKey, jellyfinUserId) {
+  console.log('\n📺 STEP 2: Getting top 10 most recent rated TV shows from Jellyfin...');
+
+  const client = createAxiosInstance();
+
+  try {
+    // Get user's TV library
+    const response = await client.get(`${jellyfinUrl}/Users/${jellyfinUserId}/Items`, {
+      headers: { 'X-Emby-Token': jellyfinApiKey },
+      params: {
+        IncludeItemTypes: 'Series',
+        Recursive: true,
+        SortBy: 'DatePlayed',
+        SortOrder: 'Descending',
+        Limit: 100
+      }
+    });
+
+    const shows = response.data.Items || [];
+    console.log(`📁 Found ${shows.length} TV shows in Jellyfin`);
+
+    // Filter for rated shows
+    const ratedShows = shows
+      .filter(show => show.UserData && show.UserData.UserRating >= 8)
+      .map(show => {
+        const ratingAt = show.UserData?.LastPlayedDate ? 
+          new Date(show.UserData.LastPlayedDate).getTime() / 1000 : 
+          Math.floor(Date.now() / 1000);
+
+        return {
+          plexId: show.Id,
+          title: show.Name,
+          year: show.ProductionYear,
+          rating: show.UserData.UserRating / 2,
+          ratingAt: parseInt(ratingAt),
+          summary: show.Overview || '',
+          genres: show.Genres || [],
+          sectionTitle: 'TV Shows',
+          tmdbId: show.ProviderIds?.Tmdb || null
+        };
+      })
+      .sort((a, b) => b.ratingAt - a.ratingAt)
+      .slice(0, 10);
+
+    console.log(`🏆 Top 10 most recent rated TV shows from Jellyfin:`);
+    ratedShows.forEach((show, i) => {
+      console.log(`   ${i + 1}. ${show.title} (${show.rating}⭐)`);
+    });
+
+    return ratedShows;
+  } catch (error) {
+    console.error('❌ Error getting Jellyfin TV shows:', error.message);
+    return [];
+  }
+}
+
+// Get recent watch history for non-review-based recommendations
+async function getJellyfinRecentWatchHistory(jellyfinUrl, jellyfinApiKey, jellyfinUserId, type, config) {
+  console.log(`\n📺 Getting recent watch history from Jellyfin for ${type}...`);
+
+  const client = createAxiosInstance();
+  const itemType = type === 'movie' ? 'Movie' : 'Series';
+
+  try {
+    const response = await client.get(`${jellyfinUrl}/Users/${jellyfinUserId}/Items`, {
+      headers: { 'X-Emby-Token': jellyfinApiKey },
+      params: {
+        IncludeItemTypes: itemType,
+        Recursive: true,
+        SortBy: 'DatePlayed',
+        SortOrder: 'Descending',
+        Limit: 1000 // Get more items
+      }
+    });
+
+    const items = response.data.Items || [];
+    console.log(`📁 Found ${items.length} total ${type}s in Jellyfin`);
+
+    // Get ALL items that have been played (not just last 30 days)
+    const watchedItems = items
+      .filter(item => {
+        // Include items that have been played at all
+        return item.UserData?.LastPlayedDate || item.UserData?.PlayCount > 0;
+      })
+      .map(item => {
+        const ratingAt = new Date(item.UserData.LastPlayedDate).getTime() / 1000;
+
+        return {
+          plexId: item.Id,
+          title: item.Name,
+          year: item.ProductionYear,
+          rating: item.UserData.UserRating ? item.UserData.UserRating / 2 : 3, // Default to 3 stars if no rating
+          ratingAt: parseInt(ratingAt),
+          summary: item.Overview || '',
+          genres: item.Genres || [],
+          sectionTitle: itemType === 'Movie' ? 'Movies' : 'TV Shows',
+          tmdbId: item.ProviderIds?.Tmdb || null
+        };
+      })
+      .sort((a, b) => b.ratingAt - a.ratingAt);
+    
+    console.log(`📺 Found ${watchedItems.length} watched ${type}s in Jellyfin`);
+    
+    const limit = config.watchHistoryLimit || 25; // Default to 25 if not set
+    const topRecent = watchedItems.slice(0, limit);
+
+    console.log(`🏆 Top ${topRecent.length} recently watched ${type}s from Jellyfin:`);
+    topRecent.forEach((item, i) => {
+      console.log(`   ${i + 1}. ${item.title} (watched: ${new Date(item.ratingAt * 1000).toLocaleDateString()})`);
+    });
+
+    return topRecent;
+  } catch (error) {
+    console.error(`❌ Error getting Jellyfin watch history for ${type}:`, error.message);
+    return [];
   }
 }
 
@@ -436,6 +628,181 @@ async function getTop10RecentTVShows(plexUrl, plexToken) {
   return top10Shows;
 }
 
+// Get recent watch history for non-review-based recommendations (Plex) - FIXED VERSION
+async function getPlexRecentWatchHistory(plexUrl, plexToken, type, config) {
+  console.log(`\n📺 Getting recent watch history from Plex for ${type}...`);
+
+  const client = createAxiosInstance();
+  let allItems = [];
+  
+  try {
+    // Get ALL watch history by fetching ALL pages
+    console.log(`   📡 Fetching COMPLETE watch history from Plex (all pages)...`);
+    
+    let start = 0;
+    const pageSize = 1000; // Reasonable page size
+    let totalSize = null;
+    let hasMore = true;
+    
+    while (hasMore) {
+      console.log(`   📄 Fetching page starting at ${start}...`);
+      
+      const response = await client.get(`${plexUrl}/status/sessions/history/all`, {
+        headers: { 'X-Plex-Token': plexToken },
+        params: {
+          'X-Plex-Container-Start': start,
+          'X-Plex-Container-Size': pageSize,
+        }
+      });
+
+      if (!response.data.MediaContainer) {
+        console.log(`   ❌ No more data available`);
+        break;
+      }
+
+      const pageItems = response.data.MediaContainer.Metadata || [];
+      if (pageItems.length === 0) {
+        console.log(`   ✅ No more pages available`);
+        break;
+      }
+
+      // Get total size from first response
+      if (totalSize === null) {
+        totalSize = response.data.MediaContainer.totalSize || response.data.MediaContainer.size || 0;
+        console.log(`   📊 Total items available: ${totalSize}`);
+      }
+
+      allItems = allItems.concat(pageItems);
+      console.log(`   📊 Fetched ${pageItems.length} items (total so far: ${allItems.length})`);
+
+      start += pageSize;
+      
+      // Stop if we've got all items or if this page was smaller than requested
+      hasMore = pageItems.length === pageSize && (totalSize === 0 || allItems.length < totalSize);
+      
+      // Small delay to be nice to the API
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    console.log(`   ✅ Fetched ${allItems.length} total items from complete session history`);
+
+    // Only keep items with a viewedAt date
+    allItems = allItems.filter(item => item.viewedAt);
+    console.log(`   ✅ ${allItems.length} items have viewedAt timestamps`);
+
+    if (allItems.length === 0) {
+      console.log(`   ❌ No items with viewedAt timestamps found`);
+      return [];
+    }
+
+    // CRITICAL FIX: Sort by viewedAt DESCENDING (most recent first)
+    // Convert viewedAt to number and sort properly
+    allItems.sort((a, b) => {
+      const aTime = parseInt(a.viewedAt);
+      const bTime = parseInt(b.viewedAt);
+      return bTime - aTime; // Most recent first
+    });
+
+    // Debug: Show the actual timestamps and converted dates for RECENT items
+    console.log('   🔍 Debug - First 5 MOST RECENT items with timestamp analysis:');
+    allItems.slice(0, 5).forEach((item, i) => {
+      const timestamp = parseInt(item.viewedAt);
+      const dateFromSeconds = new Date(timestamp * 1000);
+      const now = new Date();
+      const daysAgo = Math.floor((now - dateFromSeconds) / (1000 * 60 * 60 * 24));
+      
+      console.log(`      ${i + 1}. ${item.title} (${item.type}) - ${dateFromSeconds.toLocaleDateString()} (${daysAgo} days ago)`);
+    });
+
+    // Since Plex timestamps are in seconds (Unix timestamp), use that
+    console.log(`   🕐 Using timestamps as seconds (Unix timestamps)`);
+
+    let processed = [];
+    const limit = config.watchHistoryLimit || 25;
+    
+    if (type === 'movie') {
+      // Filter for movies only (not episodes, trailers, etc.)
+      const movieItems = allItems.filter(item =>
+        item.type === 'movie' &&
+        !item.grandparentTitle && // Not part of a TV show
+        !item.parentTitle // Not part of a series
+      );
+      
+      console.log(`   🎬 Found ${movieItems.length} movies in watch history`);
+      
+      // Take the most recent movies up to the limit
+      processed = movieItems
+        .slice(0, limit)
+        .map(item => {
+          const timestamp = parseInt(item.viewedAt); // Already in seconds
+          
+          return {
+            plexId: item.ratingKey,
+            title: item.title,
+            year: item.year,
+            rating: 3, // Default rating for watch history
+            ratingAt: timestamp,
+            summary: '',
+            genres: [],
+            sectionTitle: 'Recently Watched',
+            tmdbId: null // Will be looked up later
+          };
+        });
+        
+    } else if (type === 'show') {
+      // Group episodes by series, keeping only the most recent episode per series
+      const seriesMap = new Map();
+      
+      const episodeItems = allItems.filter(item =>
+        item.type === 'episode' || 
+        (item.type === 'movie' && (item.grandparentTitle || item.parentTitle)) // Sometimes shows are categorized as movies
+      );
+      
+      console.log(`   📺 Found ${episodeItems.length} episode entries in watch history`);
+      
+      episodeItems.forEach(item => {
+        const seriesKey = item.grandparentTitle || item.parentTitle || item.title;
+        const timestamp = parseInt(item.viewedAt); // Already in seconds
+        
+        if (!seriesMap.has(seriesKey) || timestamp > seriesMap.get(seriesKey).ratingAt) {
+          seriesMap.set(seriesKey, {
+            plexId: item.grandparentRatingKey || item.ratingKey,
+            title: seriesKey,
+            year: item.year,
+            rating: 3, // Default rating for watch history
+            ratingAt: timestamp,
+            summary: '',
+            genres: [],
+            sectionTitle: 'Recently Watched',
+            tmdbId: null // Will be looked up later
+          });
+        }
+      });
+      
+      // Convert to array and sort by most recent
+      processed = Array.from(seriesMap.values())
+        .sort((a, b) => b.ratingAt - a.ratingAt)
+        .slice(0, limit);
+        
+      console.log(`   📺 Grouped into ${seriesMap.size} unique series`);
+    }
+
+    console.log(`🏆 Top ${processed.length} recently watched ${type}s from Plex session history:`);
+    processed.forEach((item, i) => {
+      const watchDate = new Date(item.ratingAt * 1000);
+      const now = new Date();
+      const daysAgo = Math.floor((now - watchDate) / (1000 * 60 * 60 * 24));
+      console.log(`   ${i + 1}. ${item.title} (watched: ${watchDate.toLocaleDateString()} - ${daysAgo} days ago)`);
+    });
+
+    return processed;
+    
+  } catch (error) {
+    console.log(`   ⚠️ Could not get user watch history: ${error.message}`);
+    console.log(`   🔍 Error details:`, error.response?.status, error.response?.statusText);
+    return [];
+  }
+}
 
 // STEP 3: Search TMDB for matches
 async function searchTMDB(title, year, type, tmdbApiKey) {
@@ -628,6 +995,23 @@ app.post('/api/test/:service', async (req, res) => {
         });
         break;
 
+      case 'jellyfin':
+        if (!config.jellyfinUrl || !config.jellyfinApiKey || !config.jellyfinUserId) {
+          return res.json({
+            success: false,
+            message: 'Please configure your Jellyfin URL, API key, and user ID first'
+          });
+        }
+        const jellyfinClient = createAxiosInstance();
+        await jellyfinClient.get(`${config.jellyfinUrl}/Users/${config.jellyfinUserId}`, {
+          headers: { 'X-Emby-Token': config.jellyfinApiKey }
+        });
+        res.json({
+          success: true,
+          message: 'Jellyfin connection successful'
+        });
+        break;
+
       case 'tmdb':
         if (!config.tmdbApiKey) {
           return res.json({
@@ -696,23 +1080,70 @@ app.post('/api/sync', async (req, res) => {
   if (!validateConfig(config)) {
     return res.status(400).json({
       error: 'Configuration validation failed. Please check your settings.',
-      missing: ['plexUrl', 'plexToken', 'tmdbApiKey'].filter(key => !config[key])
+      missing: ['tmdbApiKey'].filter(key => !config[key])
     });
   }
 
   try {
-    console.log('\n🚀 Starting TRUE TOP 10 sync process...');
+    console.log('\n🚀 Starting sync process...');
+    console.log(`📺 Provider: ${config.provider}`);
+    console.log(`🎯 Using watch history: ${config.useWatchHistory}`);
     
     // Clear existing data
     await db.run('DELETE FROM cached_library');
     await db.run('DELETE FROM cached_recommendations');
     console.log('🗑️  Cleared existing cache');
     
-    // STEP 1 & 2: Get top 10 recent movies and TV shows
-    const [top10Movies, top10Shows] = await Promise.all([
-      getTop10RecentMovies(config.plexUrl, config.plexToken),
-      getTop10RecentTVShows(config.plexUrl, config.plexToken)
-    ]);
+    let top10Movies, top10Shows;
+    
+    if (config.provider === 'plex') {
+      if (!config.plexUrl || !config.plexToken) {
+        return res.status(400).json({
+          error: 'Plex configuration missing. Please configure Plex URL and token.',
+          missing: ['plexUrl', 'plexToken'].filter(key => !config[key])
+        });
+      }
+      
+      if (config.useWatchHistory) {
+        // Use watch history instead of ratings
+        console.log(`🎯 Getting watch history for movies...`);
+        top10Movies = await getPlexRecentWatchHistory(config.plexUrl, config.plexToken, 'movie', config);
+        console.log(`🎯 Getting watch history for shows...`);
+        top10Shows = await getPlexRecentWatchHistory(config.plexUrl, config.plexToken, 'show', config);
+        console.log(`📊 Watch history results - Movies: ${top10Movies.length}, Shows: ${top10Shows.length}`);
+      } else {
+        // Use ratings as before
+        [top10Movies, top10Shows] = await Promise.all([
+          getTop10RecentMovies(config.plexUrl, config.plexToken),
+          getTop10RecentTVShows(config.plexUrl, config.plexToken)
+        ]);
+      }
+    } else if (config.provider === 'jellyfin') {
+      if (!config.jellyfinUrl || !config.jellyfinApiKey || !config.jellyfinUserId) {
+        return res.status(400).json({
+          error: 'Jellyfin configuration missing. Please configure Jellyfin URL, API key, and user ID.',
+          missing: ['jellyfinUrl', 'jellyfinApiKey', 'jellyfinUserId'].filter(key => !config[key])
+        });
+      }
+      
+      if (config.useWatchHistory) {
+        // Use watch history instead of ratings
+        [top10Movies, top10Shows] = await Promise.all([
+          getJellyfinRecentWatchHistory(config.jellyfinUrl, config.jellyfinApiKey, config.jellyfinUserId, 'movie', config),
+          getJellyfinRecentWatchHistory(config.jellyfinUrl, config.jellyfinApiKey, config.jellyfinUserId, 'tv', config)
+        ]);
+      } else {
+        // Use ratings
+        [top10Movies, top10Shows] = await Promise.all([
+          getJellyfinTop10RecentMovies(config.jellyfinUrl, config.jellyfinApiKey, config.jellyfinUserId),
+          getJellyfinTop10RecentTVShows(config.jellyfinUrl, config.jellyfinApiKey, config.jellyfinUserId)
+        ]);
+      }
+    } else {
+      return res.status(400).json({
+        error: 'Invalid provider. Please select either "plex" or "jellyfin".'
+      });
+    }
     
     const allTop20Items = [
       ...top10Movies.map(m => ({...m, type: 'movie'})), 
@@ -720,9 +1151,12 @@ app.post('/api/sync', async (req, res) => {
     ];
     
     if (allTop20Items.length === 0) {
+      console.log(`❌ No items found from ${config.useWatchHistory ? 'watch history' : 'ratings'}`);
       return res.json({
         success: false,
-        message: 'No recent 4-5 star ratings found. Visit http://localhost:3001/api/debug-ratings to analyze your Plex ratings.',
+        message: config.useWatchHistory 
+          ? 'No recent watch history found. Try watching some content first or check your Plex configuration.'
+          : 'No recent 4-5 star ratings found. Visit http://localhost:3001/api/debug-ratings to analyze your Plex ratings.',
         stats: { totalRated: 0, processedMovies: 0, processedShows: 0 }
       });
     }
@@ -853,9 +1287,12 @@ app.post('/api/sync', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     
+    const sourceType = config.useWatchHistory ? 'recently watched items' : 'recent ratings';
     const successMessage = [
-      `✅ TRUE TOP 10 Sync Completed!`,
-      `🎯 Processed exactly ${allTop20Items.length} most recent ratings`,
+      `✅ Sync Completed!`,
+      `📺 Provider: ${config.provider}`,
+      `🎯 Source: ${sourceType}`,
+      `🎯 Processed ${allTop20Items.length} items`,
       `🎬 Movies: ${processedMovies} | 📺 TV Shows: ${processedShows}`,
       `🔗 TMDB matches: ${tmdbMatches}/${allTop20Items.length}`,
       `🎯 Recommendations generated: ${recommendationsGenerated}`,
