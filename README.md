@@ -1,7 +1,5 @@
 # Nextt - Multi-Provider Recommendation Dashboard
 
-# 🚧🚧🚧🚧🚧 COMING SOON 🚧🚧🚧🚧🚧
-
 A self-hosted, multi-provider recommendation dashboard with TMDB enrichment and Overseerr integration — finally, a smart, personalized way to find what to watch next. Supports both Plex and Jellyfin!
 
 ![Nextt Dashboard](https://github.com/WhiskeyCoder/Nextt/blob/main/images/2025-07-19%202001_35_18-Settings.png)
