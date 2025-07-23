@@ -15,10 +15,12 @@ export function ConnectionTest({ config }: ConnectionTestProps) {
   const [mediaServerTest, setMediaServerTest] = useState<TestResult>({ status: 'idle' });
   const [tmdbTest, setTmdbTest] = useState<TestResult>({ status: 'idle' });
   const [overseerrTest, setOverseerrTest] = useState<TestResult>({ status: 'idle' });
+  const [jellyseerrTest, setJellyseerrTest] = useState<TestResult>({ status: 'idle' });
 
-  const testConnection = async (service: 'plex' | 'jellyfin' | 'tmdb' | 'overseerr') => {
+  const testConnection = async (service: 'plex' | 'jellyfin' | 'tmdb' | 'overseerr' | 'jellyseerr') => {
     const setTest = service === 'plex' || service === 'jellyfin' ? setMediaServerTest : 
-                   service === 'tmdb' ? setTmdbTest : setOverseerrTest;
+                   service === 'tmdb' ? setTmdbTest : 
+                   service === 'overseerr' ? setOverseerrTest : setJellyseerrTest;
 
     setTest({ status: 'loading' });
 
@@ -36,7 +38,7 @@ export function ConnectionTest({ config }: ConnectionTestProps) {
     }
   };
 
-  const renderTestButton = (service: 'plex' | 'jellyfin' | 'tmdb' | 'overseerr', testResult: TestResult, label: string) => (
+  const renderTestButton = (service: 'plex' | 'jellyfin' | 'tmdb' | 'overseerr' | 'jellyseerr', testResult: TestResult, label: string) => (
     <div className="flex items-center justify-between p-4 border border-gray-700 rounded-lg bg-gray-700">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
@@ -69,6 +71,7 @@ export function ConnectionTest({ config }: ConnectionTestProps) {
       {renderTestButton(config.provider, mediaServerTest, `${config.provider === 'plex' ? 'Plex' : 'Jellyfin'} Connection`)}
       {renderTestButton('tmdb', tmdbTest, 'TMDB API')}
       {renderTestButton('overseerr', overseerrTest, 'Overseerr API')}
+      {renderTestButton('jellyseerr', jellyseerrTest, 'Jellyseerr API')}
     </div>
   );
 }
