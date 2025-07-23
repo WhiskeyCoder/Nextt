@@ -10,6 +10,9 @@ export interface Config {
   tmdbApiKey: string;
   overseerrUrl: string;
   overseerrApiKey: string;
+  useJellyseerr: boolean;
+  jellyseerrUrl: string;
+  jellyseerrApiKey: string;
   ratingThreshold: number;
   recommendationsPerSeed: number;
   useWatchHistory: boolean; // New field for non-review-based recommendations
@@ -75,6 +78,9 @@ class ApiService {
         tmdbApiKey: '',
         overseerrUrl: '',
         overseerrApiKey: '',
+        useJellyseerr: false,
+        jellyseerrUrl: '',
+        jellyseerrApiKey: '',
         ratingThreshold: 4,
         recommendationsPerSeed: 5,
         useWatchHistory: false,
@@ -91,7 +97,7 @@ class ApiService {
   }
 
   // Connection testing
-  async testConnection(service: 'plex' | 'jellyfin' | 'tmdb' | 'overseerr'): Promise<ApiResponse<void>> {
+  async testConnection(service: 'plex' | 'jellyfin' | 'tmdb' | 'overseerr' | 'jellyseerr'): Promise<ApiResponse<void>> {
     return this.request<ApiResponse<void>>(`/test/${service}`, {
       method: 'POST',
     });
