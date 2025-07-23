@@ -6,13 +6,19 @@ import { apiService, Config } from '../services/api';
 
 export function Settings() {
   const [config, setConfig] = useState<Config>({
-    plex_url: '',
-    plex_token: '',
-    tmdb_api_key: '',
-    overseerr_url: '',
-    overseerr_api_key: '',
-    rating_threshold: 4,
-    recommendations_per_seed: 5,
+    provider: 'plex',
+    plexUrl: '',
+    plexToken: '',
+    jellyfinUrl: '',
+    jellyfinApiKey: '',
+    jellyfinUserId: '',
+    tmdbApiKey: '',
+    overseerrUrl: '',
+    overseerrApiKey: '',
+    ratingThreshold: 4,
+    recommendationsPerSeed: 5,
+    useWatchHistory: false,
+    watchHistoryLimit: 25,
   });
   const [isLoading, setIsLoading] = useState(true);
 
