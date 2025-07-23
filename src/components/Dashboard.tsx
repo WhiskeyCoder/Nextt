@@ -34,7 +34,10 @@ export function Dashboard() {
 
   const loadRecommendations = async () => {
     try {
+      console.log(`🔍 Loading recommendations for: ${contentType}`);
       const data = await apiService.getRecommendations(contentType);
+      console.log(`📊 Received recommendations data:`, data);
+      console.log(`📊 Data length: ${data.length}`);
       setRecommendations(data);
       // Cache the data for this content type
       setCachedRecommendations(prev => ({
@@ -108,10 +111,11 @@ export function Dashboard() {
               </p>
               <div className="space-y-3 text-sm text-gray-400 text-left">
                 <ol className="list-decimal list-inside space-y-2 ml-4">
-                  <li>You haven't configured your Plex and TMDB credentials yet</li>
-                  <li>You don't have any 4-5 star rated content in your Plex library</li>
+                  <li>You haven't configured your media server and TMDB credentials yet</li>
+                  <li>You don't have any rated content or recent watch history</li>
                   <li>You haven't synced your library yet</li>
-                  <li>Your rated content doesn't have TMDB metadata</li>
+                  <li>Your content doesn't have TMDB metadata</li>
+                  <li>Try enabling "Use Watch History" in settings if you don't rate content</li>
                 </ol>
               </div>
               <button
