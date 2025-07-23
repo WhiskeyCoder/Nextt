@@ -1,13 +1,19 @@
 const API_BASE_URL = 'http://localhost:3001/api';
 
 export interface Config {
+  provider: 'plex' | 'jellyfin';
   plexUrl: string;
   plexToken: string;
+  jellyfinUrl: string;
+  jellyfinApiKey: string;
+  jellyfinUserId: string;
   tmdbApiKey: string;
   overseerrUrl: string;
   overseerrApiKey: string;
   ratingThreshold: number;
   recommendationsPerSeed: number;
+  useWatchHistory: boolean; // New field for non-review-based recommendations
+  watchHistoryLimit: number; // Number of recent items to use for watch history mode
 }
 
 export interface ApiResponse<T> {
@@ -60,13 +66,19 @@ class ApiService {
     } catch (error) {
       console.log('No existing config found, returning defaults');
       return {
+        provider: 'plex',
         plexUrl: '',
         plexToken: '',
+        jellyfinUrl: '',
+        jellyfinApiKey: '',
+        jellyfinUserId: '',
         tmdbApiKey: '',
         overseerrUrl: '',
         overseerrApiKey: '',
         ratingThreshold: 4,
-        recommendationsPerSeed: 5
+        recommendationsPerSeed: 5,
+        useWatchHistory: false,
+        watchHistoryLimit: 25
       };
     }
   }
@@ -79,7 +91,7 @@ class ApiService {
   }
 
   // Connection testing
-  async testConnection(service: 'plex' | 'tmdb' | 'overseerr'): Promise<ApiResponse<void>> {
+  async testConnection(service: 'plex' | 'jellyfin' | 'tmdb' | 'overseerr'): Promise<ApiResponse<void>> {
     return this.request<ApiResponse<void>>(`/test/${service}`, {
       method: 'POST',
     });
@@ -94,7 +106,10 @@ class ApiService {
 
   // Recommendations
   async getRecommendations(type: 'movies' | 'tv'): Promise<any[]> {
-    return this.request<any[]>(`/recommendations/${type}`);
+    console.log(`🌐 API: Getting recommendations for ${type}`);
+    const result = await this.request<any[]>(`/recommendations/${type}`);
+    console.log(`🌐 API: Received ${result.length} recommendation groups for ${type}`);
+    return result;
   }
 
   // Content requests - FIXED: backend expects 'contentType' not 'type'
