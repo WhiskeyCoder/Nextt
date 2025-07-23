@@ -233,6 +233,11 @@ function validateConfig(config) {
     return false;
   }
   
+  if (config.jellyseerrUrl && !config.jellyseerrUrl.startsWith('http')) {
+    console.log(`⚠️  Invalid Jellyseerr URL format: ${config.jellyseerrUrl}`);
+    return false;
+  }
+  
   console.log(`✅ Config validation passed for ${config.provider}`);
   return true;
 }
@@ -947,6 +952,63 @@ async function requestInOverseerr(tmdbId, type, overseerrUrl, overseerrApiKey) {
   }
 }
 
+// Jellyseerr API functions
+async function checkAvailabilityInJellyseerr(tmdbId, type, jellyseerrUrl, jellyseerrApiKey) {
+  try {
+    if (!jellyseerrUrl || !jellyseerrApiKey) {
+      return 'not_requested';
+    }
+    
+    const client = createAxiosInstance();
+    const response = await client.get(`${jellyseerrUrl}/api/v1/request`, {
+      params: { tmdbId, type },
+      headers: { 'Authorization': `Bearer ${jellyseerrApiKey}` }
+    });
+    
+    if (response.data?.results && response.data.results.length > 0) {
+      const status = response.data.results[0].media?.status;
+      if (status === 1) return 'available';
+      if (status === 2) return 'available'; // Partially available
+      if (status === 3 || status === 4) return 'requested';
+    }
+    
+    return 'not_requested';
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return 'not_requested';
+    }
+    console.error(`Jellyseerr availability check error for TMDB ${tmdbId}:`, error.message);
+    return 'not_requested';
+  }
+}
+
+async function requestInJellyseerr(tmdbId, type, jellyseerrUrl, jellyseerrApiKey) {
+  try {
+    const client = createAxiosInstance();
+    const requestBody = {
+      mediaType: type,
+      tmdbId: tmdbId
+    };
+    
+    // Add TV-specific fields if it's a TV show
+    if (type === 'tv') {
+      requestBody.tvdbId = null;
+      requestBody.seasons = [];
+    }
+    
+    const response = await client.post(`${jellyseerrUrl}/api/v1/request`, requestBody, {
+      headers: {
+        'Authorization': `Bearer ${jellyseerrApiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Jellyseerr request error:', error.message);
+    throw error;
+  }
+}
+
 // API Routes
 app.get('/api/config', (req, res) => {
   try {
@@ -1043,6 +1105,23 @@ app.post('/api/test/:service', async (req, res) => {
         res.json({
           success: true,
           message: 'Overseerr connection successful'
+        });
+        break;
+
+      case 'jellyseerr':
+        if (!config.jellyseerrUrl || !config.jellyseerrApiKey) {
+          return res.json({
+            success: false,
+            message: 'Please configure your Jellyseerr URL and API key first'
+          });
+        }
+        const jellyseerrClient = createAxiosInstance();
+        await jellyseerrClient.get(`${config.jellyseerrUrl}/api/v1/settings/public`, {
+          headers: { 'Authorization': `Bearer ${config.jellyseerrApiKey}` }
+        });
+        res.json({
+          success: true,
+          message: 'Jellyseerr connection successful'
         });
         break;
 
@@ -1230,13 +1309,25 @@ app.post('/api/sync', async (req, res) => {
         
         // STEP 5: Check availability during sync (not on page load)
         console.log(`   📡 Checking availability for: ${recTitle}`);
-        const availability = await checkAvailabilityInOverseerr(
-          rec.id, 
-          item.type, 
-          config.overseerrUrl, 
-          config.overseerrApiKey
-        );
-        console.log(`   ✅ ${recTitle}: ${availability}`);
+        let availability = 'not_requested';
+        
+        if (config.useJellyseerr && config.jellyseerrUrl && config.jellyseerrApiKey) {
+          availability = await checkAvailabilityInJellyseerr(
+            rec.id, 
+            item.type, 
+            config.jellyseerrUrl, 
+            config.jellyseerrApiKey
+          );
+          console.log(`   ✅ ${recTitle}: ${availability} (via Jellyseerr)`);
+        } else if (config.overseerrUrl && config.overseerrApiKey) {
+          availability = await checkAvailabilityInOverseerr(
+            rec.id, 
+            item.type, 
+            config.overseerrUrl, 
+            config.overseerrApiKey
+          );
+          console.log(`   ✅ ${recTitle}: ${availability} (via Overseerr)`);
+        }
         
         // Get detailed info for genre and country
         let genre = null;
@@ -1411,10 +1502,14 @@ app.post('/api/request', async (req, res) => {
 
   console.log(`📝 Request received: TMDB ID ${tmdbId}, Type: ${contentType}`);
 
-  if (!config.overseerrUrl || !config.overseerrApiKey) {
-    console.log('❌ Overseerr not configured');
+  // Check if either Overseerr or Jellyseerr is configured
+  const hasOverseerr = config.overseerrUrl && config.overseerrApiKey;
+  const hasJellyseerr = config.useJellyseerr && config.jellyseerrUrl && config.jellyseerrApiKey;
+
+  if (!hasOverseerr && !hasJellyseerr) {
+    console.log('❌ No request manager configured');
     return res.status(400).json({
-      error: 'Overseerr not configured. Please set up Overseerr URL and API key in settings.'
+      error: 'No request manager configured. Please set up either Overseerr or Jellyseerr URL and API key in settings.'
     });
   }
 
@@ -1426,10 +1521,14 @@ app.post('/api/request', async (req, res) => {
       return res.status(404).json({ error: 'Content not found' });
     }
 
-    console.log(`🎯 Making request to Overseerr for: ${details.title || details.name}`);
-
-    // Make the request to Overseerr
-    await requestInOverseerr(tmdbId, contentType, config.overseerrUrl, config.overseerrApiKey);
+    // Determine which service to use
+    if (config.useJellyseerr && hasJellyseerr) {
+      console.log(`🎯 Making request to Jellyseerr for: ${details.title || details.name}`);
+      await requestInJellyseerr(tmdbId, contentType, config.jellyseerrUrl, config.jellyseerrApiKey);
+    } else if (hasOverseerr) {
+      console.log(`🎯 Making request to Overseerr for: ${details.title || details.name}`);
+      await requestInOverseerr(tmdbId, contentType, config.overseerrUrl, config.overseerrApiKey);
+    }
     
     console.log(`📊 Updating database for TMDB ID: ${tmdbId}`);
 
@@ -1489,7 +1588,9 @@ app.get('/api/debug', async (req, res) => {
         plexUrl: config.plexUrl ? `${config.plexUrl.substring(0, 20)}...` : 'NOT SET',
         hasPlexToken: !!config.plexToken,
         hasTmdbKey: !!config.tmdbApiKey,
-        hasOverseerr: !!config.overseerrUrl
+        hasOverseerr: !!config.overseerrUrl,
+        useJellyseerr: config.useJellyseerr,
+        hasJellyseerr: !!config.jellyseerrUrl
       },
       database: {
         libraryCount: libraryCount.count,
