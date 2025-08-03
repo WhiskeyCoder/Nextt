@@ -1,52 +1,38 @@
 #!/bin/bash
 
-echo "🚀 Nextt - Plex-Powered Recommendation Dashboard"
-echo "================================================"
-echo
+echo "🚀 Starting Nextt in Docker container..."
 
-# Check if we're in the right directory
-if [ ! -f "package.json" ]; then
-    echo "❌ Error: package.json not found. Please run this script from the project directory."
-    exit 1
-fi
+# Start the backend server (which will also serve the frontend)
+echo "📊 Starting backend server..."
+node server/index.js &
+BACKEND_PID=$!
 
-# Check Node.js version
-NODE_VERSION=$(node --version)
-echo "✅ Node.js version: $NODE_VERSION"
+# Wait for backend to be ready
+echo "⏳ Waiting for backend to be ready..."
+for i in {1..30}; do
+  if node -e "
+    const http = require('http');
+    const req = http.request('http://localhost:3001/api/health', {method: 'GET'}, (res) => {
+      if (res.statusCode === 200) {
+        process.exit(0);
+      } else {
+        process.exit(1);
+      }
+    });
+    req.on('error', () => process.exit(1));
+    req.setTimeout(2000, () => process.exit(1));
+    req.end();
+  " > /dev/null 2>&1; then
+    echo "✅ Backend is ready!"
+    break
+  fi
+  echo "⏳ Waiting for backend... (attempt $i/30)"
+  sleep 2
+done
 
-# Check if dependencies are installed
-if [ ! -d "node_modules" ]; then
-    echo
-    echo "📦 Installing dependencies..."
-    npm install
-    if [ $? -ne 0 ]; then
-        echo "❌ Failed to install dependencies"
-        exit 1
-    fi
-    echo "✅ Dependencies installed successfully"
-else
-    echo "✅ Dependencies already installed"
-fi
+echo "🎉 Nextt is running!"
+echo "📊 Backend: http://localhost:3001"
+echo "🌐 Frontend: http://localhost:3001"
 
-# Check if ports are available
-BACKEND_PORT=3001
-FRONTEND_PORT=5173
-
-if netstat -an 2>/dev/null | grep -q ":$BACKEND_PORT.*LISTEN"; then
-    echo "⚠️  Warning: Port $BACKEND_PORT is already in use. The backend server may not start properly."
-fi
-
-if netstat -an 2>/dev/null | grep -q ":$FRONTEND_PORT.*LISTEN"; then
-    echo "⚠️  Warning: Port $FRONTEND_PORT is already in use. The frontend server may not start properly."
-fi
-
-echo
-echo "🎯 Starting Nextt..."
-echo "📊 Backend will run on: http://localhost:$BACKEND_PORT"
-echo "🌐 Frontend will run on: http://localhost:$FRONTEND_PORT"
-echo
-echo "⏳ Starting servers..."
-echo
-
-# Start both servers
-npm run dev:full 
+# Keep the script running
+wait 
