@@ -169,31 +169,17 @@ This is a frontend-only demo showcasing the complete UI/UX. The current version 
 ## 🐳 Docker Deployment ([ITS NOW LIVE - https://hub.docker.com/r/whiskeycoder/nextt](https://hub.docker.com/r/whiskeycoder/nextt))
 
 ```yaml
-version: '3.8'
 services:
-  nextt-backend:
-    build: ./backend
+  nextt:
+    build: .
     ports:
-      - "8000:8000"
-    volumes:
-      - ./config:/app/config
-      - ./db:/app/db
+      - "3001:3001"  # Backend serves both frontend and API
     environment:
-      - PLEX_URL=${PLEX_URL}
-      - PLEX_TOKEN=${PLEX_TOKEN}
-      - TMDB_API_KEY=${TMDB_API_KEY}
-      - OVERSEERR_URL=${OVERSEERR_URL}
-      - OVERSEERR_API_KEY=${OVERSEERR_API_KEY}
-      - JELLYSEERR_URL=${JELLYSEERR_URL}
-      - JELLYSEERR_API_KEY=${JELLYSEERR_API_KEY}
-    restart: unless-stopped
-
-  nextt-frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - nextt-backend
+      - NODE_ENV=production
+    volumes:
+      # Optional: mount a volume for persistent data if needed
+      # - ./data:/app/data
+      - ./config:/app/config
     restart: unless-stopped
 ```
 
